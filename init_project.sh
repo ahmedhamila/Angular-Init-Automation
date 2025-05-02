@@ -44,15 +44,8 @@ fi
 # Step 2: Navigate into project
 cd $PROJECT_DIR
 
-# Create scripts directory if it doesn't exist
+# Step 3: Make sure the scripts directory exists
 mkdir -p scripts
-
-# Step 3: Create or update the generate_angular_files.sh script
-if [ ! -f "scripts/generate_angular_files.sh" ]; then
-  echo "Creating generate_angular_files.sh script..."
-  cp generate_angular_files.sh scripts/ 2>/dev/null || touch scripts/generate_angular_files.sh
-  chmod +x scripts/generate_angular_files.sh
-fi
 
 # Step 4: Create or update .env file
 echo "Creating .env file..."
