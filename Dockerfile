@@ -13,7 +13,7 @@ COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
 # Copy the rest of the application code
-COPY . .
+COPY . /app/
 
 # Expose port
 EXPOSE 4200
