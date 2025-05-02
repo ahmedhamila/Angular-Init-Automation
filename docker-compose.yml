@@ -2,36 +2,37 @@ version: "3.8"
 services:
   app_setup:
     image: node:20-alpine
-    working_dir: /app
     volumes:
       - .:/app
+    working_dir: /app
     env_file:
       - .env
     command: >
       sh -c "
-        npm install --legacy-peer-deps &&
-        if [ -n \"${MODELS_DATA}\" ] && [ -n \"${APP_NAME}\" ]; then
-          echo 'Generating Angular files for models...' &&
-          chmod +x /app/scripts/generate_angular_files.sh &&
-          /app/scripts/generate_angular_files.sh \"${APP_NAME}\" \"${MODELS_DATA}\";
-        else
-          echo 'No models or app name defined, skipping model generation';
+        if [ ! -d 'node_modules' ]; then 
+          npm install --legacy-peer-deps;
+        fi &&
+        if [ '${APP_NAME}' ] && [ '${MODELS_DATA}' ]; then
+          mkdir -p scripts &&
+          sh /app/scripts/generate_angular_files.sh \"${APP_NAME}\" \"${MODELS_DATA}\";
         fi
       "
-  
-  angular_web:
+
+  angular-app:
     image: node:20-alpine
-    working_dir: /app
     volumes:
       - .:/app
     ports:
       - "4200:4200"
-    env_file:
-      - .env
+    working_dir: /app
     command: >
       sh -c "
-        npm install --legacy-peer-deps &&
+        if [ ! -d 'node_modules' ]; then 
+          npm install --legacy-peer-deps;
+        fi &&
         npx ng serve --host 0.0.0.0 --disable-host-check
       "
+    env_file:
+      - .env
     depends_on:
       - app_setup

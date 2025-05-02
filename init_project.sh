@@ -22,7 +22,6 @@ MODELS_DATA=""
 for model_arg in "$@"; do
   # Split by colon to separate model name and fields
   IFS=':' read -r model_name fields <<< "$model_arg"
-  
   if [ -z "$model_name" ] || [ -z "$fields" ]; then
     echo "Error: Invalid model format. Use model_name:field1,field2,..."
     usage
@@ -45,19 +44,26 @@ fi
 # Step 2: Navigate into project
 cd $PROJECT_DIR
 
-# Step 3: Create or update .env file with app name and models data
-if [ ! -f ".env" ]; then
-  echo "Creating .env file..."
-  touch .env
+# Create scripts directory if it doesn't exist
+mkdir -p scripts
+
+# Step 3: Create or update the generate_angular_files.sh script
+if [ ! -f "scripts/generate_angular_files.sh" ]; then
+  echo "Creating generate_angular_files.sh script..."
+  cp generate_angular_files.sh scripts/ 2>/dev/null || touch scripts/generate_angular_files.sh
+  chmod +x scripts/generate_angular_files.sh
 fi
 
-# Add or update APP_NAME and MODELS_DATA in .env
-grep -q "^APP_NAME=" .env && sed -i "s/^APP_NAME=.*/APP_NAME=$APP_NAME/" .env || echo "APP_NAME=$APP_NAME" >> .env
-grep -q "^MODELS_DATA=" .env && sed -i "s/^MODELS_DATA=.*/MODELS_DATA=\"$MODELS_DATA\"/" .env || echo "MODELS_DATA=\"$MODELS_DATA\"" >> .env
+# Step 4: Create or update .env file
+echo "Creating .env file..."
+cat > .env << EOF
+APP_NAME=$APP_NAME
+MODELS_DATA="$MODELS_DATA"
+EOF
 
-# Step 4: Start Docker Compose
+# Step 5: Start Docker Compose
 echo "Starting Docker containers..."
 docker-compose up -d --build
 
-echo "Angular app with models is being created..."
+echo "Angular app with CRUD for models is being created..."
 echo "Access your project at http://localhost:4200"

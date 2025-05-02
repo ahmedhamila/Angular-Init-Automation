@@ -1,7 +1,14 @@
 #!/bin/bash
 
-APP_NAME=$1      # Used in API URL
-MODELS_DATA=$2   # Format: model1:field1,field2;model2:field1,field2
+# Check arguments
+if [ "$#" -lt 2 ]; then
+  echo "Usage: $0 app_name models_data"
+  echo "Example: $0 api \"product:name,price,description;user:username,email,password\""
+  exit 1
+fi
+
+APP_NAME=$1
+MODELS_DATA=$2
 
 # Ensure required directories exist
 mkdir -p src/app/models
@@ -27,7 +34,7 @@ EOF
 # Generate standalone HomeComponent (if not already created)
 if [ ! -f src/app/pages/home.component.ts ]; then
   ng generate component pages/home --standalone --flat --inline-template --inline-style
-  
+
   # Modify HomeComponent to have an <h1>
   cat <<EOF > src/app/pages/home.component.ts
 import { Component } from '@angular/core';
@@ -41,43 +48,40 @@ import { CommonModule } from '@angular/common';
   <div class="container mx-auto p-4 text-center">
     <h1 class="text-3xl font-bold">Welcome to the Home Page</h1>
   </div>
-  \`,
+  \`
 })
 export class HomeComponent {}
 EOF
 fi
 
-# Ensure app.routes.ts exists with basic setup
-cat <<EOF > src/app/app.routes.ts
-import { Routes } from '@angular/router';
-import { HomeComponent } from './pages/home.component';
+# Create routes.ts if it doesn't exist
+if [ ! -f src/app/app.routes.ts ]; then
+  echo "import { Routes } from '@angular/router';" > src/app/app.routes.ts
+  echo "export const routes: Routes = [" >> src/app/app.routes.ts
+  echo "  { path: '', redirectTo: 'home', pathMatch: 'full' }," >> src/app/app.routes.ts
+  echo "  { path: 'home', component: HomeComponent }," >> src/app/app.routes.ts
+  echo "];" >> src/app/app.routes.ts
+fi
 
-export const routes: Routes = [
-  { path: '', redirectTo: 'home', pathMatch: 'full' },
-  { path: 'home', component: HomeComponent },
-];
-EOF
-
-# Process each model from MODELS_DATA
+# Process each model
 IFS=';' read -ra MODELS <<< "$MODELS_DATA"
-for MODEL_INFO in "${MODELS[@]}"; do
-  # Split model info into name and fields
-  IFS=':' read -r MODEL_NAME FIELDS_STR <<< "$MODEL_INFO"
+for MODEL_ENTRY in "${MODELS[@]}"; do
+  # Split model entry into name and fields
+  IFS=':' read -r MODEL_NAME FIELDS <<< "$MODEL_ENTRY"
   
-  # Convert model name to PascalCase (e.g., product -> Product)
+  # Convert model name to PascalCase
   CAP_MODEL_NAME=$(echo "$MODEL_NAME" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}')
   
-  # Convert fields string to array
-  IFS=',' read -ra FIELDS <<< "$FIELDS_STR"
-  
-  echo "Generating files for model: $MODEL_NAME"
+  # Create array of fields
+  IFS=',' read -ra FIELD_ARRAY <<< "$FIELDS"
   
   # Generate typed model with all fields
   cat <<EOF > src/app/models/$MODEL_NAME.model.ts
 export interface $CAP_MODEL_NAME {
   id?: number;
 EOF
-  for FIELD in "${FIELDS[@]}"; do
+
+  for FIELD in "${FIELD_ARRAY[@]}"; do
     echo "  $FIELD: string;" >> src/app/models/$MODEL_NAME.model.ts
   done
   echo "}" >> src/app/models/$MODEL_NAME.model.ts
@@ -87,6 +91,13 @@ EOF
 
   # Generate service for the model
   ng generate service services/$MODEL_NAME
+
+  # Create string array of fields for the component
+  FIELD_LIST="["
+  for FIELD in "${FIELD_ARRAY[@]}"; do
+    FIELD_LIST+="'$FIELD', "
+  done
+  FIELD_LIST="${FIELD_LIST%, }]"
 
   # Modify service to use environment variable for API URL
   cat <<EOF > src/app/services/$MODEL_NAME.service.ts
@@ -125,13 +136,6 @@ export class ${CAP_MODEL_NAME}Service {
   }
 }
 EOF
-
-  # Create a JavaScript array of fields for the template
-  FIELD_ARRAY="["
-  for FIELD in "${FIELDS[@]}"; do
-    FIELD_ARRAY+="'$FIELD', "
-  done
-  FIELD_ARRAY="${FIELD_ARRAY%, }]"
 
   # Modify component to handle full CRUD operations
   cat <<EOF > src/app/pages/$MODEL_NAME.component.ts
@@ -185,7 +189,7 @@ import { $CAP_MODEL_NAME } from '../models/$MODEL_NAME.model';
 export class ${CAP_MODEL_NAME}Component implements OnInit {
   items: $CAP_MODEL_NAME[] = [];
   // Define fields for the data model
-  displayFields: string[] = $FIELD_ARRAY;
+  displayFields: string[] = $FIELD_LIST;
   formData: $CAP_MODEL_NAME = {} as $CAP_MODEL_NAME;
   editing = false;
   editId: number | null = null;
@@ -246,13 +250,16 @@ export class ${CAP_MODEL_NAME}Component implements OnInit {
 }
 EOF
 
-  # Update the routes file to include the new component
-  # First, import the component
-  sed -i "/import { HomeComponent } from/a import { ${CAP_MODEL_NAME}Component } from '.\/pages\/$MODEL_NAME.component';" src/app/app.routes.ts
-  
-  # Then add the route - insert before the closing bracket
-  sed -i "/];/i \ \ { path: '$MODEL_NAME', component: ${CAP_MODEL_NAME}Component }," src/app/app.routes.ts
+  # Update app routes to include the new component
+  # First check if the route already exists
+  if ! grep -q "$MODEL_NAME" src/app/app.routes.ts; then
+    # Insert the new route before the closing bracket
+    sed -i "s/];/  { path: '$MODEL_NAME', component: ${CAP_MODEL_NAME}Component },\n];/" src/app/app.routes.ts
+    
+    # Add import for the component
+    sed -i "1s/^/import { ${CAP_MODEL_NAME}Component } from '.\/pages\/$MODEL_NAME.component';\n/" src/app/app.routes.ts
+  fi
 
 done
 
-echo "Angular model generation completed successfully!"
+echo "Successfully generated Angular files for models: $MODELS_DATA"
