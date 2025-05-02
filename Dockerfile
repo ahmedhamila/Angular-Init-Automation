@@ -3,8 +3,11 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
+# Install bash
+RUN apk add --no-cache bash
 # Install global dependencies
-RUN npm install -g @angular/cli
+RUN apk add --no-cache dos2unix && \
+    npm install -g @angular/cli
 
 # Copy package.json and package-lock.json
 COPY package*.json ./
