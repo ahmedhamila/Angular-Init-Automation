@@ -1,55 +1,37 @@
 version: "3.8"
-
 services:
   app_setup:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: node:20-alpine
     working_dir: /app
     volumes:
       - .:/app
-      - node_modules:/app/node_modules
     env_file:
       - .env
     command: >
       sh -c "
-        echo 'Installing dependencies (this may take a few minutes)...' &&
-        npm ci --legacy-peer-deps ||
-        npm install --legacy-peer-deps --no-audit --no-fund --prefer-offline &&
-        if [ -n \"${APP_NAME}\" ] && [ -n \"${MODELS_DATA}\" ]; then
-          echo 'Setting up Angular application with models...' &&
-          mkdir -p /app/scripts &&
-          chmod +x /app/scripts/generate_app_files.sh &&
-          sh /app/scripts/generate_app_files.sh \"${APP_NAME}\" \"${MODELS_DATA}\";
+        npm install --legacy-peer-deps &&
+        if [ -n \"${MODELS_DATA}\" ] && [ -n \"${APP_NAME}\" ]; then
+          echo 'Generating Angular files for models...' &&
+          chmod +x /app/scripts/generate_angular_files.sh &&
+          /app/scripts/generate_angular_files.sh \"${APP_NAME}\" \"${MODELS_DATA}\";
         else
-          echo 'No APP_NAME or MODELS_DATA provided. Skipping model generation.';
-        fi &&
-        mkdir -p src/environments &&
-        echo 'Creating environment files...' &&
-        echo 'export const environment = { production: false, apiUrl: \"http://127.0.0.1:8000\" };' > src/environments/environment.ts &&
-        echo 'export const environment = { production: true, apiUrl: \"${API_URL}\" };' > src/environments/environment.prod.ts
+          echo 'No models or app name defined, skipping model generation';
+        fi
       "
-
-  angular-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: angular-dev
+  
+  angular_web:
+    image: node:20-alpine
     working_dir: /app
     volumes:
       - .:/app
-      - node_modules:/app/node_modules
     ports:
       - "4200:4200"
+    env_file:
+      - .env
     command: >
       sh -c "
-        echo 'Starting Angular development server...' &&
+        npm install --legacy-peer-deps &&
         npx ng serve --host 0.0.0.0 --disable-host-check
       "
-    environment:
-      - NODE_ENV=development
     depends_on:
       - app_setup
-
-volumes:
-  node_modules:
