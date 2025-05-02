@@ -1,7 +1,9 @@
 version: "3.8"
 services:
   app_setup:
-    image: node:20-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
     volumes:
       - .:/app
     working_dir: /app
@@ -9,28 +11,31 @@ services:
       - .env
     command: >
       sh -c "
-        if [ ! -d 'node_modules' ]; then 
-          npm install --legacy-peer-deps;
-        fi &&
         if [ '${APP_NAME}' ] && [ '${MODELS_DATA}' ]; then
           mkdir -p scripts &&
-          sh /app/scripts/generate_angular_files.sh \"${APP_NAME}\" \"${MODELS_DATA}\";
+          chmod +x /app/scripts/generate_angular_files.sh &&
+          echo 'Generating Angular files for models: ${MODELS_DATA}' &&
+          /app/scripts/generate_angular_files.sh \"${APP_NAME}\" \"${MODELS_DATA}\";
+        else
+          echo 'No APP_NAME or MODELS_DATA provided. Skipping code generation.';
         fi
       "
 
   angular-app:
-    image: node:20-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
     volumes:
       - .:/app
     ports:
       - "4200:4200"
     working_dir: /app
+    environment:
+      - NODE_ENV=development
     command: >
       sh -c "
-        if [ ! -d 'node_modules' ]; then 
-          npm install --legacy-peer-deps;
-        fi &&
-        npx ng serve --host 0.0.0.0 --disable-host-check
+        echo 'Starting Angular development server...' &&
+        ng serve --host 0.0.0.0 --disable-host-check
       "
     env_file:
       - .env
